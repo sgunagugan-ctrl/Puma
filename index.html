@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Puma</title>
+<style>
+:root{--bg:#120c08;--ink:#f6ead9;--mute:#a9927a;--orange:#f28a1e;--line:#3a2a1c}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(circle at 50% 25%,#2b1809,var(--bg) 65%);color:var(--ink);font:16px/1.5 system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;padding:20px 16px 40px}
+h1{margin:0;font-size:28px;letter-spacing:.12em;color:var(--orange)}
+#status{color:var(--mute);margin:8px 0 18px;text-align:center}
+#orb{width:170px;height:170px;border-radius:50%;border:0;cursor:pointer;background:radial-gradient(circle at 35% 30%,#ffd28a,#f28a1e 60%,#d9560a);box-shadow:0 0 50px #f28a1e55;position:relative}
+#orb::before,#orb::after{content:"";position:absolute;top:44%;width:26px;height:9px;border-radius:5px;background:#3b2210}
+#orb::before{left:34%}#orb::after{right:34%}
+#orb.on{animation:glow 1.8s ease-in-out infinite}
+@keyframes glow{50%{box-shadow:0 0 90px #f28a1eaa}}
+@media (prefers-reduced-motion:reduce){#orb.on{animation:none}}
+#consent{max-width:420px;color:var(--mute);font-size:14px;text-align:center;margin:18px 0}
+#log{width:100%;max-width:520px;display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.m{padding:10px 14px;border-radius:14px;max-width:85%;border:1px solid var(--line)}
+.you{align-self:flex-end;background:#2a1b10}
+.puma{align-self:flex-start;background:#1c120a}
+.act{display:inline-block;margin-top:6px;padding:12px 18px;border-radius:999px;background:var(--orange);color:#201005;font-weight:700;text-decoration:none}
+details{width:100%;max-width:520px;margin-top:22px;border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+summary{cursor:pointer;font-weight:600}
+label{display:block;margin:12px 0 4px;color:var(--mute);font-size:14px}
+input,select,.btn{width:100%;padding:11px;border-radius:10px;border:1px solid var(--line);background:#1c120a;color:var(--ink);font:inherit}
+.btn{margin-top:12px;cursor:pointer;text-align:center}
+:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+</style>
+</head>
+<body>
+<h1>PUMA</h1>
+<div id="status"></div>
+<button id="orb" aria-label="Start or stop Puma"></button>
+<p id="consent">Puma uses your microphone while this page is open. Your name, your parents’ names, contacts you pick and your chat history stay on this phone only.</p>
+
+<div id="acts"></div>
+<div id="log" aria-live="polite"></div>
+
+<details id="set">
+  <summary>Settings</summary>
+  <label for="name">Your name</label><input id="name">
+  <label for="mom">Mother’s name</label><input id="mom">
+  <label for="dad">Father’s name</label><input id="dad">
+  <label for="lang">Language</label><select id="lang"></select>
+  <button class="btn" id="imp">Import contacts (you choose which)</button>
+  <div id="cnt" style="color:var(--mute);font-size:14px;margin-top:6px"></div>
+  <button class="btn" id="save">Save</button>
+  <button class="btn" id="clr">Clear chat history</button>
+</details>
+
+<script>
+const $ = id => document.getElementById(id);
+// "tg" = Tanglish (Tamil in English letters), the default
+const LANGS = {"Tanglish":"tg","English":"en-IN","தமிழ் (Tamil)":"ta-IN","हिन्दी (Hindi)":"hi-IN","తెలుగు (Telugu)":"te-IN","മലയാളം (Malayalam)":"ml-IN","ಕನ್ನಡ (Kannada)":"kn-IN"};
+// Add more apps here: name → Android package name
+const APPS = {instagram:"com.instagram.android",whatsapp:"com.whatsapp",youtube:"com.google.android.youtube",gmail:"com.google.android.gm",maps:"com.google.android.apps.maps",chrome:"com.android.chrome",spotify:"com.spotify.music",facebook:"com.facebook.katana",telegram:"org.telegram.messenger","play store":"com.android.vending",phonepe:"com.phonepe.app","google pay":"com.google.android.apps.nbu.paisa.user"};
+
+let store = {};
+try { store = JSON.parse(localStorage.getItem("puma") || "{}"); } catch (e) {}
+store.history = store.history || []; store.contacts = store.contacts || [];
+const save = () => { try { localStorage.setItem("puma", JSON.stringify(store)); } catch (e) {} };
+
+const L = () => store.lang || "tg";
+const TG = () => L() === "tg";
+const RL = () => TG() ? "en-IN" : L();
+const t = (tg, en) => TG() ? tg : en;
+
+Object.entries(LANGS).forEach(([n, c]) => $("lang").add(new Option(n, c)));
+function fillForm() {
+  $("name").value = store.name || ""; $("mom").value = store.mom || ""; $("dad").value = store.dad || "";
+  $("lang").value = L();
+  $("cnt").textContent = store.contacts.length + " contacts saved";
+  $("status").textContent = t("Face ah thattunga", "Tap the face to start");
+  if (!store.name) $("set").open = true;
+}
+$("save").onclick = () => {
+  store.name = $("name").value.trim(); store.mom = $("mom").value.trim(); store.dad = $("dad").value.trim();
+  store.lang = $("lang").value; save(); $("set").open = false; restart();
+  $("status").textContent = on ? t("“Hey Puma” nu sollunga", "Say “Hey Puma”") : t("Face ah thattunga", "Tap the face to start");
+};
+$("clr").onclick = () => { store.history = []; save(); $("log").innerHTML = ""; };
+$("imp").onclick = async () => {
+  if (!("contacts" in navigator)) return alert("This browser can’t import contacts.");
+  try {
+    const p = await navigator.contacts.select(["name", "tel"], {multiple: true});
+    store.contacts = p.filter(x => x.tel && x.tel[0]).map(x => ({name: x.name[0] || "", tel: x.tel[0]}));
+    save(); $("cnt").textContent = store.contacts.length + " contacts saved";
+  } catch (e) {}
+};
+
+function addLog(who, text, remember = true) {
+  const d = document.createElement("div"); d.className = "m " + who; d.textContent = text;
+  $("log").prepend(d);
+  if (remember) { store.history.push({who, text}); store.history = store.history.slice(-100); save(); }
+}
+store.history.slice(-20).forEach(h => addLog(h.who, h.text, false));
+
+function offer(label, href) {
+  const a = document.createElement("a"); a.className = "act"; a.href = href; a.textContent = label;
+  $("acts").replaceChildren(a);
+}
+
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec, on = false, awake = false, speaking = false;
+
+function say(text) {
+  addLog("puma", text); speaking = true;
+  try { rec && rec.stop(); } catch (e) {}
+  const u = new SpeechSynthesisUtterance(text.replace(/S\.Gugan/g, "S Gugan")); u.lang = RL();
+  u.onend = u.onerror = () => { speaking = false; listen(); };
+  speechSynthesis.speak(u);
+}
+
+function listen() {
+  if (!on || speaking) return;
+  rec = new SR(); rec.lang = RL(); rec.continuous = true;
+  rec.onresult = e => handle(e.results[e.results.length - 1][0].transcript.trim());
+  rec.onend = () => { if (on && !speaking) setTimeout(listen, 300); };
+  try { rec.start(); } catch (e) {}
+  $("status").textContent = t("“Hey Puma” nu sollunga", "Say “Hey Puma”");
+}
+function restart() { try { rec && rec.stop(); } catch (e) {} }
+
+function handle(s) {
+  const m = s.match(/\b(hey|hi|hay|ok)\s*(puma|pooma|pumma)\b[\s,.]*(.*)/i);
+  let cmd;
+  if (m) cmd = m[3]; else if (awake) cmd = s; else return;
+  awake = false;
+  if (!cmd) { awake = true; setTimeout(() => awake = false, 8000); return say(t("Sollunga?", "Yes?")); }
+  addLog("you", s); run(cmd.toLowerCase());
+}
+
+async function run(c) {
+  $("acts").innerHTML = "";
+  let m = c.match(/^open\s+(.+)/) || c.match(/^(.+?)\s+open\s*(?:pannu|pannunga|panni?du)?$/);
+  if (m) {
+    const k = Object.keys(APPS).find(k => m[1].includes(k));
+    if (!k) return say(t("Antha app enakku innum theriyala. Code la app list la serkalam.", "I don’t know that app yet. It can be added to the app list in the code."));
+    offer("Open " + k, "intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=" + APPS[k] + ";end");
+    return say(t(k + " open panna intha button ah thattunga.", "Tap the button to open " + k + "."));
+  }
+  m = c.match(/^(?:call|phone)\s+(.+)/) || c.match(/^(.+?)\s*(?:ku|kku)?\s+(?:call|phone)\s*(?:pannu|pannunga|panni?du)?$/);
+  if (m) {
+    const q = m[1].trim().replace(/\s*(pannu|pannunga|panni?du)$/, "");
+    const p = store.contacts.find(x => x.name.toLowerCase().includes(q));
+    if (!p) return say(t(q + " unga contacts la illa. Settings la contacts import pannunga.", "I can’t find " + q + " in your saved contacts. Import contacts in settings."));
+    offer("Call " + p.name, "tel:" + p.tel.replace(/\s/g, ""));
+    return say(t(p.name + " ku call panna intha button ah thattunga.", "Tap the button to call " + p.name + "."));
+  }
+  if (/(my name|en peyar|en name)/.test(c)) return say(store.name ? t("Unga peyar " + store.name + ".", "Your name is " + store.name + ".") : t("Unga peyar enakku innum theriyala. Settings la serunga.", "I don’t know your name yet. Add it in settings."));
+  if (/(parents|mother|mom|father|dad|amma|appa)/.test(c) && /(name|peyar|who|yaar)/.test(c)) {
+    const s = t([store.mom && "amma " + store.mom, store.dad && "appa " + store.dad].filter(Boolean).join(", "),
+                [store.mom && "your mother is " + store.mom, store.dad && "your father is " + store.dad].filter(Boolean).join(" and "));
+    return say(s ? t("Unga " + s + " nu enakku theriyum.", "I know that " + s + ".") : t("Unga amma appa peyar enakku innum theriyala. Settings la serunga.", "I don’t know your parents’ names yet. Add them in settings."));
+  }
+  try {
+    const l = TG() ? "en" : L().slice(0, 2);
+    const q = c.replace(/^(what is|who is|tell me about|search for|search)\s*/, "");
+    const r = await fetch("https://" + l + ".wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=" + encodeURIComponent(q) + "&gsrlimit=1&prop=extracts&exintro=1&explaintext=1&exsentences=2&format=json&origin=*");
+    const j = await r.json();
+    const p = j.query && Object.values(j.query.pages)[0];
+    if (p && p.extract) return say(p.extract);
+  } catch (e) {}
+  offer("Search Google", "https://www.google.com/search?q=" + encodeURIComponent(c));
+  say(t("Enakku short answer kedaikala. Google la thedurathukku button ah thattunga.", "I couldn’t find a short answer. Tap the button to search Google."));
+}
+
+$("orb").onclick = async () => {
+  if (!SR) return alert("Open this page in Chrome on Android. This browser has no speech recognition.");
+  if (on) { on = false; $("orb").classList.remove("on"); restart(); $("status").textContent = t("Face ah thattunga", "Tap the face to start"); return; }
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({audio: true});
+    s.getTracks().forEach(x => x.stop());
+  } catch (e) { return alert("Puma needs microphone permission to hear you."); }
+  on = true; $("orb").classList.add("on");
+  say("This is created by S.Gugan. " + t("Vanakkam" + (store.name ? " " + store.name : "") + ". Hey Puma nu eppo venalum sollunga.", "Hi" + (store.name ? " " + store.name : "") + ". Say Hey Puma anytime."));
+};
+fillForm();
+</script>
+</body>
+</html>
