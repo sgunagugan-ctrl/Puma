@@ -3,7 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Puma</title>
+<title>Puma</title><link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#120c08">
+<link rel="icon" href="icon-192.png">
 <style>
 :root{--bg:#120c08;--ink:#f6ead9;--mute:#a9927a;--orange:#f28a1e;--line:#3a2a1c}
 *{box-sizing:border-box}
@@ -178,7 +180,7 @@ $("orb").onclick = async () => {
   on = true; $("orb").classList.add("on");
   say("This is created by S.Gugan. " + t("Vanakkam" + (store.name ? " " + store.name : "") + ". Hey Puma nu eppo venalum sollunga.", "Hi" + (store.name ? " " + store.name : "") + ". Say Hey Puma anytime."));
 };
-fillForm();
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");fillForm();
 </script>
 </body>
 </html>
